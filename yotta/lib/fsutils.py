@@ -16,7 +16,7 @@ def mkDirP(path):
         if exception.errno != errno.EEXIST:
             raise
 
-def rmF(path):
+def _rmNoRetry(path):
     try:
         if isLink(path):
             rmLink(path)
@@ -24,6 +24,26 @@ def rmF(path):
             os.remove(path)
     except OSError as exception:
         if exception.errno != errno.ENOENT:
+            raise
+
+def rmF(path):
+    # on windows, it seems that various system processes (antivirus, search
+    # indexing, and possibly other things) seem to keep files "open" after
+    # python has closed them, preventing them from being removed if we
+    # later (in the same process) try to remove them ...
+    for x in range(0, 100):
+        try:
+            _rmNoRetry(path)
+            break
+        # ... ultimately leading to this error ...
+        except OSError as e:
+            if getattr(__builtins__, "WindowsError", None) is not None:
+                # 145 = Directory not empty
+                if isinstance(e, WindowsError):
+                    if e.errno == 145: #pylint: disable=undefined-variable
+                        continue
+                        # ... trying again should fix the problem
+            # in all other cases, raise the exception
             raise
 
 def _rmRfNoRetry(path):
