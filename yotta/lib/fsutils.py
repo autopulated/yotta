@@ -33,7 +33,7 @@ def _retryWindowsErrors(fn):
                 if getattr(__builtins__, "WindowsError", None) is not None:
                     # 145 = Directory not empty
                     if isinstance(e, WindowsError):
-                        if e.errno == 145: #pylint: disable=undefined-variable
+                        if e.errno in (145, 32): #pylint: disable=undefined-variable
                             continue
                             # ... trying again should fix the problem
                 # in all other cases, raise the exception
