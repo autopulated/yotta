@@ -16,7 +16,32 @@ def mkDirP(path):
         if exception.errno != errno.EEXIST:
             raise
 
-def _rmNoRetry(path):
+def _retryWindowsErrors(fn):
+    import functools
+    @functools.wraps(fn)
+    def wrapped(*args, **kwargs):
+        # on windows, it seems that various system processes (antivirus, search
+        # indexing, and possibly other things) seem to keep files "open" after
+        # python has closed them, preventing them from being removed if we
+        # later (in the same process) try to remove them ...
+        for x in range(0, 100):
+            try:
+                fn(*args, **kwargs)
+                break
+            # ... ultimately leading to this error ...
+            except OSError as e:
+                if getattr(__builtins__, "WindowsError", None) is not None:
+                    # 145 = Directory not empty
+                    if isinstance(e, WindowsError):
+                        if e.errno == 145: #pylint: disable=undefined-variable
+                            continue
+                            # ... trying again should fix the problem
+                # in all other cases, raise the exception
+                raise
+    return wrapped
+
+@_retryWindowsErrors
+def rmF(path):
     try:
         if isLink(path):
             rmLink(path)
@@ -26,27 +51,8 @@ def _rmNoRetry(path):
         if exception.errno != errno.ENOENT:
             raise
 
-def rmF(path):
-    # on windows, it seems that various system processes (antivirus, search
-    # indexing, and possibly other things) seem to keep files "open" after
-    # python has closed them, preventing them from being removed if we
-    # later (in the same process) try to remove them ...
-    for x in range(0, 100):
-        try:
-            _rmNoRetry(path)
-            break
-        # ... ultimately leading to this error ...
-        except OSError as e:
-            if getattr(__builtins__, "WindowsError", None) is not None:
-                # 145 = Directory not empty
-                if isinstance(e, WindowsError):
-                    if e.errno == 145: #pylint: disable=undefined-variable
-                        continue
-                        # ... trying again should fix the problem
-            # in all other cases, raise the exception
-            raise
-
-def _rmRfNoRetry(path):
+@_retryWindowsErrors
+def rmRf(path):
     # we may have to make files writable before we can successfully delete
     # them, to do this
     def fixPermissions(fn, path, excinfo):
@@ -68,26 +74,6 @@ def _rmRfNoRetry(path):
         if exception.errno == errno.ENOTDIR:
             rmF(path)
         elif exception.errno != errno.ENOENT:
-            raise
-
-def rmRf(path):
-    # on windows, it seems that various system processes (antivirus, search
-    # indexing, and possibly other things) seem to keep files "open" after
-    # python has closed them, preventing them from being removed if we
-    # later (in the same process) try to remove them ...
-    for x in range(0, 100):
-        try:
-            _rmRfNoRetry(path)
-            break
-        # ... ultimately leading to this error ...
-        except OSError as e:
-            if getattr(__builtins__, "WindowsError", None) is not None:
-                # 145 = Directory not empty
-                if isinstance(e, WindowsError):
-                    if e.errno == 145: #pylint: disable=undefined-variable
-                        continue
-                        # ... trying again should fix the problem
-            # in all other cases, raise the exception
             raise
 
 
