@@ -6,6 +6,23 @@
 from yotta.lib import lazyregex #pylint: disable=unused-import
 from yotta.lib import errors #pylint: disable=unused-import
 
+import yotta.lib.reticulator
+yotta.lib.reticulator.setupContext({
+        'name':u'yotta',
+    'endpoint':u'http://127.0.0.1:7777/foo'
+     'headers':{
+         }
+})
+
+yotta.lib.reticulator.report({
+    'type':u'error',
+    'someData':u'testing error at init'
+})
+yotta.lib.reticulator.report({
+    'type':u'error',
+    'someData':'testing error containing bytes\0\1\2\3 because why wouldn\'t you want to push bytes in here?'
+})
+
 # NOTE: argcomplete must be first!
 # argcomplete, pip install argcomplete, tab-completion for argparse, Apache-2
 import argcomplete
@@ -203,9 +220,21 @@ def main():
         sys.exit(0)
 
     try:
+        yotta.lib.reticulator.report({
+            'type':u'error',
+            'someData':u'testing error after cli parsing'
+        })
         status = args.command(args, following_args)
     except KeyboardInterrupt:
         logging.warning('interrupted')
         status = -1
+
+    yotta.lib.reticulator.report({
+        'type':u'error',
+        'someData':u'testing error immediately before exit'
+    })
+    
+    # testing abnormal program termination
+    ohnoe = syntaxerror
 
     sys.exit(status or 0)
